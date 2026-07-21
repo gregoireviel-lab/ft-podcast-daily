@@ -1,6 +1,20 @@
-import EpisodeList from "@/components/EpisodeList";
+import EpisodeListClient from "@/components/EpisodeList";
+import { getEpisodes } from "@/lib/episodes";
+import type { Episode } from "@/types/episode";
 
-export default function HomePage() {
+// Daily content -> statically render and revalidate every 15 min (ISR).
+export const revalidate = 900;
+
+export default async function HomePage() {
+  let episodes: Episode[] = [];
+  let loadError = false;
+  try {
+    episodes = await getEpisodes(30);
+  } catch (err) {
+    console.error("[HomePage] failed to load episodes:", err);
+    loadError = true;
+  }
+
   return (
     <main className="min-h-screen bg-[#121212]">
       {/* Header */}
@@ -8,7 +22,7 @@ export default function HomePage() {
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 rounded-full bg-[#1DB954] flex items-center justify-center shrink-0">
-              <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 1a9 9 0 0 1 9 9v7a3 3 0 0 1-3 3h-1v-8h2V10A8 8 0 0 0 4 10v2h2v8H5a3 3 0 0 1-3-3v-7a9 9 0 0 1 9-9Z" />
               </svg>
             </div>
@@ -28,7 +42,7 @@ export default function HomePage() {
         <h2 className="text-[#b3b3b3] text-xs font-semibold uppercase tracking-widest mb-3">
           Épisodes récents
         </h2>
-        <EpisodeList />
+        <EpisodeListClient episodes={episodes} loadError={loadError} />
       </div>
     </main>
   );

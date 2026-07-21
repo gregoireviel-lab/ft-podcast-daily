@@ -3,142 +3,85 @@
 # FT Daily Podcast — SaaS Interface
 
 Interface web Spotify-like pour écouter les épisodes quotidiens du FT Daily Podcast.
+C'est UNIQUEMENT l'interface de lecture — la génération est un pipeline local.
 
 ## Architecture globale
 
 ```
-[Mac de Greg @ 7h]                    [Firebase]              [Vercel]
-Pipeline local (ft-podcast-daily) --> Firestore + Storage --> Cette app (Next.js)
-(~/projects/analysis/ft-podcast-daily)  episodes collection     interface lecture
+[Mac de Greg @ 7h — launchd]              [Cloud]                 [Vercel]
+Pipeline local (analysis/ft-podcast-daily) → Neon (métadonnées)  → cette app (Next.js 15)
+  fetch → claude CLI → Chatterbox TTS      + Vercel Blob (MP3)      lecture SSG/ISR
 ```
 
-Le cron est LOCAL (launchd sur Mac), le SaaS est UNIQUEMENT l'interface de lecture.
-Pas de cron cloud, pas d'auth utilisateur.
+Cron LOCAL (launchd), pas de cron cloud, pas d'auth utilisateur.
 
 ## Stack
-- Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS v4
-- Firebase (Client SDK) — Firestore pour les métadonnées, Storage pour les MP3
-- pnpm — package manager
+- Next.js **15** (App Router) + React 19 + TypeScript + Tailwind CSS v4 — pnpm
+- **Neon** (Postgres) pour les métadonnées épisodes — lecture **serveur** (SSG/ISR)
+- **Vercel Blob** pour les MP3 (URL publiques, streamées par `<audio>`)
 - Vercel — hébergement
 
-## Firebase — Structure des données
+> Historique : scaffoldé en Firebase + Next 16. Migré vers Neon + Vercel Blob et
+> aligné sur Next 15 (stack Greg) par Ada. Plus aucune dépendance Firebase.
 
-### Firestore Collection : `episodes`
-```typescript
-interface Episode {
-  id: string;               // date (YYYY-MM-DD) utilisée comme doc ID
-  date: string;             // "2026-07-21" — date de l'édition
-  title: string;            // titre généré par Claude
-  summary: string;          // résumé 2-3 phrases pour la card
-  duration_sec: number;     // durée du MP3 en secondes
-  audio_url: string;        // URL Firebase Storage (publique)
-  created_at: string;       // ISO timestamp de génération
-}
+## Données — Neon
+
+### Table `episodes`
+```sql
+CREATE TABLE episodes (
+  id            TEXT PRIMARY KEY,   -- date YYYY-MM-DD (= doc id)
+  date          DATE NOT NULL,
+  title         TEXT NOT NULL,
+  summary       TEXT NOT NULL DEFAULT '',
+  audio_url     TEXT NOT NULL DEFAULT '',   -- URL publique Vercel Blob
+  duration_sec  INTEGER NOT NULL DEFAULT 0, -- mesurée via ffprobe
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX episodes_date_idx ON episodes (date DESC);
 ```
+- Projet Neon : `ft-podcast-daily` (org Grégoire, `bitter-credit-47171914`).
+- Le pipeline fait un `INSERT ... ON CONFLICT (id) DO UPDATE` → un re-run remplace le jour.
 
-### Firebase Storage : `episodes/`
-- Pattern : `episodes/YYYY-MM-DD.mp3`
-- Accès public en lecture (règles Storage à configurer)
-- Le pipeline local upload le MP3 puis écrit l'entrée Firestore avec l'URL publique
+## Vercel Blob
+- Store `ft-podcast` lié au projet Vercel `ft-podcast-daily` (tous environnements).
+- Chemin : `episodes/YYYY-MM-DD.mp3`, public, `allowOverwrite`.
 
 ## Variables d'environnement
-
 ```
-NEXT_PUBLIC_FIREBASE_API_KEY
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-NEXT_PUBLIC_FIREBASE_PROJECT_ID
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-NEXT_PUBLIC_FIREBASE_APP_ID
+DATABASE_URL   # Neon — SERVEUR uniquement (jamais NEXT_PUBLIC_)
 ```
+Le token Blob (`BLOB_READ_WRITE_TOKEN`) n'est nécessaire que côté pipeline (écriture),
+pas côté front (lecture d'URL publiques). À configurer sur Vercel via env vars projet.
 
-Toutes sont `NEXT_PUBLIC_` car lues côté client (Firebase Client SDK).
-À injecter sur Vercel via les env vars du projet.
+## Data layer
+- `lib/db.ts` — client Neon serveur (`getSql()`).
+- `lib/episodes.ts` — `getEpisodes()` / `getEpisodeById()` (mêmes signatures qu'avant),
+  `import "server-only"`.
+- `lib/format.ts` — helpers purs (formatTime/formatDuration/formatDate/mapEpisodeRow), testés.
 
-## Comment le pipeline local push les épisodes
+## Rendu
+- `app/page.tsx` (server, `revalidate = 900`) → fetch Neon → `EpisodeListClient`.
+- `app/episode/[id]/page.tsx` (SSG via `generateStaticParams` + `generateMetadata`
+  avec le vrai titre) → `EpisodeDetail`.
+- `components/AudioPlayer.tsx` — player complet : vitesse ×1/1.25/1.5/2, skip ±15s,
+  reprise de position (localStorage/episode.id), Media Session API, tap-to-play,
+  `isPlaying` piloté par les events `<audio>` (onPlay/onPause/onPlaying/onWaiting/onError).
 
-Ajouter dans `~/projects/analysis/ft-podcast-daily/src/index.ts` (Firebase Admin SDK) :
-
-```typescript
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
-
-const app = initializeApp({
-  credential: cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  }),
-  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
-});
-
-async function publishEpisode(audioPath, date, title, summary, durationSec) {
-  // 1. Upload MP3 vers Storage
-  const bucket = getStorage(app).bucket();
-  const storageFile = bucket.file(`episodes/${date}.mp3`);
-  await storageFile.save(require("fs").readFileSync(audioPath), {
-    metadata: { contentType: "audio/mpeg" },
-  });
-  await storageFile.makePublic();
-  const audioUrl = storageFile.publicUrl();
-
-  // 2. Écrire dans Firestore
-  const db = getFirestore(app);
-  await db.collection("episodes").doc(date).set({
-    date, title, summary,
-    duration_sec: durationSec,
-    audio_url: audioUrl,
-    created_at: new Date().toISOString(),
-  });
-}
+## Structure
 ```
-
-## Firebase Security Rules
-
-### Firestore
-```
-match /episodes/{episodeId} {
-  allow read: if true;
-  allow write: if false; // uniquement Admin SDK
-}
-```
-
-### Storage
-```
-match /episodes/{fileName} {
-  allow read: if true;   // MP3 publics
-  allow write: if false; // uniquement Admin SDK
-}
-```
-
-## Structure du projet
-
-```
-ft-podcast-daily/
-├── app/
-│   ├── globals.css          # Dark mode Spotify (#121212, #1DB954)
-│   ├── layout.tsx           # Root layout
-│   └── page.tsx             # Page principale
-├── components/
-│   ├── AudioPlayer.tsx      # Player sticky bottom
-│   ├── EpisodeCard.tsx      # Card épisode
-│   └── EpisodeList.tsx      # Liste + état actif
-├── lib/
-│   ├── firebase.ts          # Init Firebase client
-│   └── episodes.ts          # Fetch Firestore
-├── types/
-│   └── episode.ts           # Type Episode
-└── .env.local.example       # Template env vars
+app/            page.tsx · layout.tsx · globals.css · episode/[id]/{page,EpisodePage}.tsx
+components/     AudioPlayer.tsx · EpisodeCard.tsx · EpisodeList.tsx
+lib/            db.ts · episodes.ts · format.ts
+types/          episode.ts
+tests/          format.test.ts   (pnpm test)
 ```
 
 ## URLs
 - **Production Vercel** : https://ft-podcast-daily.vercel.app
 - **Pipeline local** : `~/projects/analysis/ft-podcast-daily` (branche `agent/ada/ft-podcast-daily`)
-- **Firebase Console** : https://console.firebase.google.com/ (projet : `ft-podcast-daily`)
+- **Neon console** : projet `ft-podcast-daily`
 
 ## Prochaines étapes
-1. Créer le projet Firebase dans la console + activer Firestore + Storage
-2. Configurer les env vars sur Vercel
-3. Modifier le pipeline local pour push vers Firebase
-4. Tester avec un épisode manuel dans Firestore
+1. Configurer `DATABASE_URL` sur Vercel (env var projet) pour la prod.
+2. Vérifier le player en preview avec un épisode réel.
+3. Charger le cron launchd (voir `deploy/` du pipeline) une fois validé.

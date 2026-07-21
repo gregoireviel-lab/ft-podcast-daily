@@ -1,27 +1,12 @@
 "use client";
 
 import type { Episode } from "@/types/episode";
+import { formatDate, formatDuration } from "@/lib/format";
 
 interface EpisodeCardProps {
   episode: Episode;
   isActive: boolean;
   onSelect: (episode: Episode) => void;
-}
-
-function formatDuration(seconds: number): string {
-  if (!seconds) return "";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m${s > 0 ? ` ${s}s` : ""}`;
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("fr-FR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
 }
 
 export default function EpisodeCard({ episode, isActive, onSelect }: EpisodeCardProps) {
