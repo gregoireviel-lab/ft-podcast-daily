@@ -365,8 +365,13 @@ export default function AudioPlayer({
         onError={onError}
       />
 
-      {/* Row 1 — identity (title always visible) + inline controls on desktop */}
-      <div className="mx-auto flex max-w-2xl items-center gap-3">
+      {/* Row 1 mobile — controls above title (COS-0069 Spotify-style hierarchy) */}
+      <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 sm:hidden">
+        {renderControls({ size: "lg" })}
+      </div>
+
+      {/* Row 2 — identity (title always visible) + inline controls on desktop */}
+      <div className="mx-auto mt-2 flex max-w-2xl items-center gap-3 sm:mt-0">
         {/* Artwork */}
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
           <BrandGlyph className="h-6 w-6" />
@@ -383,7 +388,7 @@ export default function AudioPlayer({
         </div>
       </div>
 
-      {/* Row 2 — progress (visible draggable thumb, keyboard-accessible range) */}
+      {/* Row 3 — progress (visible draggable thumb, keyboard-accessible range) */}
       <div className="mx-auto mt-1.5 flex max-w-2xl items-center gap-2.5">
         <span className="w-10 text-right text-[0.6875rem] font-medium tabular-nums text-subtle">
           {formatTime(currentTime)}
@@ -411,11 +416,6 @@ export default function AudioPlayer({
         >
           {showRemaining ? `-${formatTime(remaining)}` : formatTime(total)}
         </button>
-      </div>
-
-      {/* Row 3 — controls on their own centered row (mobile only) */}
-      <div className="mx-auto mt-1.5 flex max-w-2xl items-center justify-center gap-3 sm:hidden">
-        {renderControls({ size: "lg" })}
       </div>
     </div>
   );
