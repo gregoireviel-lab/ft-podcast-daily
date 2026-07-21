@@ -58,7 +58,7 @@ export default function EpisodeList() {
         <svg className="w-12 h-12 text-[#535353]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
-        <p className="text-[#b3b3b3] text-sm text-center">Aucun épisode disponible pour l'instant.</p>
+        <p className="text-[#b3b3b3] text-sm text-center">Aucun épisode disponible pour l&apos;instant.</p>
         <p className="text-[#535353] text-xs text-center">Le pipeline local génère un épisode chaque matin à 7h.</p>
       </div>
     );

@@ -22,30 +22,35 @@ export default function AudioPlayer({ episode }: AudioPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Reset player when episode changes
+  const [hasError, setHasError] = useState(false);
+
+  // Reset player state when episode changes. setState calls here are intentional
+  // — this effect runs only when episode.id changes, not on every render.
   useEffect(() => {
     if (!episode) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.pause();
+    audio.src = episode.audio_url;
+    audio.load();
+
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(episode.duration_sec || 0);
     setIsLoading(true);
-
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    audio.src = episode.audio_url;
-    audio.load();
-  }, [episode?.id]);
+    setHasError(false);
+  }, [episode?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlayPause = () => {
     const audio = audioRef.current;
-    if (!audio || !episode) return;
+    if (!audio || !episode || hasError) return;
 
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().catch(console.error);
+      audio.play().catch(() => setHasError(true));
       setIsPlaying(true);
     }
   };
@@ -102,6 +107,7 @@ export default function AudioPlayer({ episode }: AudioPlayerProps) {
         onLoadedMetadata={handleLoadedMetadata}
         onCanPlay={handleCanPlay}
         onEnded={handleEnded}
+        onError={() => { setIsLoading(false); setHasError(true); setIsPlaying(false); }}
         preload="metadata"
       />
 
@@ -128,14 +134,19 @@ export default function AudioPlayer({ episode }: AudioPlayerProps) {
         {/* Play/Pause button */}
         <button
           onClick={handlePlayPause}
-          disabled={isLoading}
+          disabled={isLoading || hasError}
           className="w-10 h-10 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 shrink-0"
-          aria-label={isPlaying ? "Pause" : "Play"}
+          aria-label={hasError ? "Erreur audio" : isPlaying ? "Pause" : "Play"}
+          title={hasError ? "Impossible de charger l'audio" : undefined}
         >
           {isLoading ? (
             <svg className="w-4 h-4 text-black animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : hasError ? (
+            <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
             </svg>
           ) : isPlaying ? (
             <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24">
