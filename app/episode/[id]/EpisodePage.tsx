@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import AudioPlayer from "@/components/AudioPlayer";
+import ShareWhatsApp from "@/components/ShareWhatsApp";
 import { BrandGlyph } from "@/components/BrandMark";
 import { formatDate, formatDuration } from "@/lib/format";
 import type { Episode } from "@/types/episode";
@@ -13,7 +14,7 @@ interface Props {
 
 export default function EpisodeDetail({ episode }: Props) {
   return (
-    <main className="min-h-screen bg-bg pb-[calc(9rem+env(safe-area-inset-bottom))]">
+    <main className="min-h-screen bg-bg pb-[calc(12rem+env(safe-area-inset-bottom))] sm:pb-[calc(9rem+env(safe-area-inset-bottom))]">
       {/* Header */}
       <header className="relative overflow-hidden">
         <div
@@ -65,6 +66,10 @@ export default function EpisodeDetail({ episode }: Props) {
                 )}
               </p>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <ShareWhatsApp episodeId={episode.id} title={episode.title} />
           </div>
         </div>
       </header>

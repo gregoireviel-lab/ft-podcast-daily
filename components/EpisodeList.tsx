@@ -58,7 +58,7 @@ export default function EpisodeListClient({ episodes, loadError = false }: Props
 
   return (
     <>
-      <ul className="flex flex-col gap-2 pb-[calc(9rem+env(safe-area-inset-bottom))]">
+      <ul className="flex flex-col gap-2 pb-[calc(12rem+env(safe-area-inset-bottom))] sm:pb-[calc(9rem+env(safe-area-inset-bottom))]">
         {episodes.map((episode, i) => (
           <li
             key={episode.id}

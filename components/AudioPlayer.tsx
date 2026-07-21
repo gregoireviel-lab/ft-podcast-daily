@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import type { Episode } from "@/types/episode";
 import { formatTime, formatDate } from "@/lib/format";
+import { captureEvent } from "@/lib/analytics";
 import { BrandGlyph } from "./BrandMark";
 
 interface AudioPlayerProps {
@@ -16,6 +17,8 @@ interface AudioPlayerProps {
 const SPEEDS = [1, 1.25, 1.5, 2] as const;
 const SKIP = 15;
 const posKey = (id: string) => `ftpod:pos:${id}`;
+// Listen-progress milestones we report to analytics (COS-0062).
+const MILESTONES = [25, 50, 75] as const;
 
 export default function AudioPlayer({
   episode,
@@ -30,6 +33,10 @@ export default function AudioPlayer({
   const [error, setError] = useState<string | null>(null);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [showRemaining, setShowRemaining] = useState(false);
+
+  // Analytics guards (reset per episode) — fire each event at most once.
+  const playedRef = useRef(false);
+  const milestonesRef = useRef<Set<number>>(new Set());
 
   const setPlaying = useCallback(
     (p: boolean) => {
@@ -71,6 +78,8 @@ export default function AudioPlayer({
     setCurrentTime(0);
     setDuration(episode.duration_sec || 0);
     setIsBuffering(true);
+    playedRef.current = false;
+    milestonesRef.current = new Set();
 
     audio.src = episode.audio_url;
     audio.playbackRate = SPEEDS[speedIdx];
@@ -177,12 +186,29 @@ export default function AudioPlayer({
       lastSavedRef.current = audio.currentTime;
       savePosition(audio.currentTime);
     }
+    // Report listen-progress milestones once each (COS-0062).
+    if (episode && audio.duration > 0) {
+      const pctDone = (audio.currentTime / audio.duration) * 100;
+      for (const m of MILESTONES) {
+        if (pctDone >= m && !milestonesRef.current.has(m)) {
+          milestonesRef.current.add(m);
+          captureEvent("episode_progress", {
+            episode_id: episode.id,
+            percent: m,
+          });
+        }
+      }
+    }
   };
 
   const onEnded = () => {
     setPlaying(false);
     setCurrentTime(0);
     if (episode) {
+      captureEvent("episode_completed", {
+        episode_id: episode.id,
+        title: episode.title,
+      });
       try {
         localStorage.removeItem(posKey(episode.id));
       } catch {
@@ -195,6 +221,19 @@ export default function AudioPlayer({
     setIsBuffering(false);
     setPlaying(false);
     setError("Impossible de lire l'audio. Réessaie plus tard.");
+  };
+
+  const onPlayEvent = () => {
+    setPlaying(true);
+    // Fire "played" once per loaded episode (COS-0062).
+    if (episode && !playedRef.current) {
+      playedRef.current = true;
+      captureEvent("episode_played", {
+        episode_id: episode.id,
+        title: episode.title,
+        date: episode.date,
+      });
+    }
   };
 
   const shellClass =
@@ -214,53 +253,19 @@ export default function AudioPlayer({
   const pct = total > 0 ? (currentTime / total) * 100 : 0;
   const remaining = Math.max(0, total - currentTime);
 
-  return (
-    <div className={`${shellClass} px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]`}>
-      <audio
-        ref={audioRef}
-        preload="metadata"
-        onLoadedMetadata={onLoadedMetadata}
-        onTimeUpdate={onTimeUpdate}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onPlaying={() => {
-          setIsBuffering(false);
-          setPlaying(true);
-          setError(null);
-        }}
-        onWaiting={() => setIsBuffering(true)}
-        onEnded={onEnded}
-        onError={onError}
-      />
-
-      <div className="mx-auto flex max-w-2xl items-center gap-3">
-        {/* Artwork */}
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
-          <BrandGlyph className="h-6 w-6" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-fg">{episode.title}</p>
-          <p className="truncate text-xs text-subtle">
-            {error ? (
-              <span className="text-danger">{error}</span>
-            ) : isBuffering ? (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-                Chargement…
-              </span>
-            ) : (
-              <span className="capitalize">
-                {formatDate(episode.date, { weekday: "long", day: "numeric", month: "long" })}
-              </span>
-            )}
-          </p>
-        </div>
-
+  // Transport controls, rendered inline on desktop and as their own centered
+  // row on mobile (COS-0069, Spotify-like hierarchy: title → progress →
+  // controls). A helper (fresh JSX per call) keeps the two placements in sync.
+  const renderControls = (opts?: { size?: "sm" | "lg" }) => {
+    const big = opts?.size === "lg";
+    const btn = big ? "h-12 w-12" : "h-11 w-11";
+    const play = big ? "h-14 w-14" : "h-12 w-12";
+    return (
+      <>
         {/* Speed */}
         <button
           onClick={cycleSpeed}
-          className="h-11 w-11 shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg"
+          className={`${btn} shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg`}
           aria-label={`Vitesse de lecture ${SPEEDS[speedIdx]}x, changer`}
         >
           {SPEEDS[speedIdx]}×
@@ -269,10 +274,10 @@ export default function AudioPlayer({
         {/* Skip back 15s */}
         <button
           onClick={() => skip(-SKIP)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg"
+          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg`}
           aria-label="Reculer de 15 secondes"
         >
-          <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className={big ? "h-7 w-7" : "h-6 w-6"} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M11 8V5l-5 5 5 5v-3c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5H4a7 7 0 1 0 7-7z" />
           </svg>
         </button>
@@ -280,7 +285,7 @@ export default function AudioPlayer({
         {/* Play / Pause */}
         <button
           onClick={togglePlay}
-          className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30 transition-transform duration-150 ease-[var(--ease)] hover:scale-105 active:scale-95 motion-reduce:hover:scale-100"
+          className={`${play} relative flex shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30 transition-transform duration-150 ease-[var(--ease)] hover:scale-105 active:scale-95 motion-reduce:hover:scale-100`}
           aria-label={isPlaying ? "Pause" : "Lecture"}
         >
           {/* discreet buffering ring */}
@@ -292,7 +297,7 @@ export default function AudioPlayer({
           )}
           <span className="relative grid place-items-center">
             <svg
-              className={`col-start-1 row-start-1 h-5 w-5 transition-all duration-150 ${
+              className={`col-start-1 row-start-1 ${big ? "h-6 w-6" : "h-5 w-5"} transition-all duration-150 ${
                 isPlaying ? "scale-100 opacity-100" : "scale-50 opacity-0"
               }`}
               fill="currentColor"
@@ -302,7 +307,7 @@ export default function AudioPlayer({
               <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
             </svg>
             <svg
-              className={`col-start-1 row-start-1 ml-0.5 h-5 w-5 transition-all duration-150 ${
+              className={`col-start-1 row-start-1 ml-0.5 ${big ? "h-6 w-6" : "h-5 w-5"} transition-all duration-150 ${
                 isPlaying ? "scale-50 opacity-0" : "scale-100 opacity-100"
               }`}
               fill="currentColor"
@@ -317,16 +322,68 @@ export default function AudioPlayer({
         {/* Skip forward 15s */}
         <button
           onClick={() => skip(SKIP)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg"
+          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg`}
           aria-label="Avancer de 15 secondes"
         >
-          <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className={big ? "h-7 w-7" : "h-6 w-6"} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13 8V5l5 5-5 5v-3c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h2a7 7 0 1 1-7-7z" />
           </svg>
         </button>
+      </>
+    );
+  };
+
+  const subtitle = error ? (
+    <span className="text-danger">{error}</span>
+  ) : isBuffering ? (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+      Chargement…
+    </span>
+  ) : (
+    <span className="capitalize">
+      {formatDate(episode.date, { weekday: "long", day: "numeric", month: "long" })}
+    </span>
+  );
+
+  return (
+    <div className={`${shellClass} px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]`}>
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        onLoadedMetadata={onLoadedMetadata}
+        onTimeUpdate={onTimeUpdate}
+        onPlay={onPlayEvent}
+        onPause={() => setPlaying(false)}
+        onPlaying={() => {
+          setIsBuffering(false);
+          onPlayEvent();
+          setError(null);
+        }}
+        onWaiting={() => setIsBuffering(true)}
+        onEnded={onEnded}
+        onError={onError}
+      />
+
+      {/* Row 1 — identity (title always visible) + inline controls on desktop */}
+      <div className="mx-auto flex max-w-2xl items-center gap-3">
+        {/* Artwork */}
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
+          <BrandGlyph className="h-6 w-6" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-fg">{episode.title}</p>
+          <p className="truncate text-xs text-subtle">{subtitle}</p>
+        </div>
+
+        {/* Desktop: controls inline on the right */}
+        <div className="hidden shrink-0 items-center gap-1 sm:flex">
+          {renderControls()}
+        </div>
       </div>
 
-      {/* Progress — visible draggable thumb, keyboard-accessible native range */}
+      {/* Row 2 — progress (visible draggable thumb, keyboard-accessible range) */}
       <div className="mx-auto mt-1.5 flex max-w-2xl items-center gap-2.5">
         <span className="w-10 text-right text-[0.6875rem] font-medium tabular-nums text-subtle">
           {formatTime(currentTime)}
@@ -354,6 +411,11 @@ export default function AudioPlayer({
         >
           {showRemaining ? `-${formatTime(remaining)}` : formatTime(total)}
         </button>
+      </div>
+
+      {/* Row 3 — controls on their own centered row (mobile only) */}
+      <div className="mx-auto mt-1.5 flex max-w-2xl items-center justify-center gap-3 sm:hidden">
+        {renderControls({ size: "lg" })}
       </div>
     </div>
   );

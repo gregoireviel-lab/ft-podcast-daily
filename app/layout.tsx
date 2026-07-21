@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import Analytics from "@/components/Analytics";
+import Pwa from "@/components/Pwa";
 
 const SITE_URL = "https://ft-podcast-daily.vercel.app";
 const DESCRIPTION =
@@ -50,7 +52,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className="h-full">
-      <body className="min-h-full bg-bg text-fg antialiased">{children}</body>
+      <body className="min-h-full bg-bg text-fg antialiased">
+        {children}
+        <Pwa />
+        <Analytics />
+      </body>
     </html>
   );
 }
