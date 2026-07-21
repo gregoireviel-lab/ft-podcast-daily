@@ -1,0 +1,16 @@
+{
+  "name": "FT Daily Podcast",
+  "short_name": "FT Daily",
+  "description": "Ton briefing quotidien Financial Times — synthèse audio générée par IA.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

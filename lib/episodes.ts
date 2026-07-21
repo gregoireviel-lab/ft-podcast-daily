@@ -1,5 +1,7 @@
 import {
   collection,
+  doc,
+  getDoc,
   query,
   orderBy,
   limit,
@@ -20,8 +22,20 @@ export async function getEpisodes(maxResults = 30): Promise<Episode[]> {
     limit(maxResults)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
   })) as Episode[];
+}
+
+/**
+ * Fetch a single episode by its ID (date string, e.g. "2026-07-21").
+ * Returns null if not found.
+ */
+export async function getEpisodeById(id: string): Promise<Episode | null> {
+  const db = getDb();
+  const docRef = doc(db, "episodes", id);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() } as Episode;
 }
