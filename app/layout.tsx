@@ -3,34 +3,34 @@ import "./globals.css";
 
 const SITE_URL = "https://ft-podcast-daily.vercel.app";
 const DESCRIPTION =
-  "Ton briefing quotidien Financial Times — l'essentiel de l'actualité économique en un épisode audio, généré chaque matin par IA.";
+  "Ton briefing quotidien — l'essentiel de l'actualité économique en un épisode audio, généré chaque matin par IA.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "FT Daily Podcast",
-    template: "%s — FT Daily",
+    default: "Kairos",
+    template: "%s — Kairos",
   },
   description: DESCRIPTION,
-  applicationName: "FT Daily",
+  applicationName: "Kairos",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "FT Daily",
+    title: "Kairos",
   },
   openGraph: {
     type: "website",
-    siteName: "FT Daily Podcast",
-    title: "FT Daily Podcast",
+    siteName: "Kairos",
+    title: "Kairos",
     description: DESCRIPTION,
     url: SITE_URL,
     locale: "fr_FR",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "FT Daily Podcast" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Kairos" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "FT Daily Podcast",
+    title: "Kairos",
     description: DESCRIPTION,
     images: ["/og.png"],
   },

@@ -1,7 +1,7 @@
 {
-  "name": "FT Daily Podcast",
-  "short_name": "FT Daily",
-  "description": "Ton briefing quotidien Financial Times — synthèse audio générée par IA.",
+  "name": "Kairos",
+  "short_name": "Kairos",
+  "description": "Ton briefing quotidien — synthèse audio générée par IA.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f11",

@@ -30,7 +30,7 @@ if (existsSync(GEORGIA)) {
   serif = { name: "Georgia", data: await readFile(GEORGIA), weight: 700, style: "normal" };
 }
 
-/** The FT Daily broadcast glyph (matches components/BrandMark.tsx). */
+/** The Kairos broadcast glyph (matches components/BrandMark.tsx). */
 function glyph(px, color = INK) {
   const bar = (x, y, w, h, o = 1) =>
     React.createElement("rect", { x, y, width: w, height: h, rx: w / 2, fill: color, opacity: o });
@@ -107,7 +107,7 @@ function ogCard() {
         React.createElement(
           "div",
           { style: { fontFamily: "Georgia", fontSize: 92, fontWeight: 700, color: "#f4f4f5", lineHeight: 1 } },
-          "FT Daily"
+          "Kairos"
         ),
         React.createElement(
           "div",

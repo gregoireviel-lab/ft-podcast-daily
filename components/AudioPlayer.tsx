@@ -95,7 +95,7 @@ export default function AudioPlayer({
     }
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.title,
-      artist: "FT Daily Podcast",
+      artist: "Kairos",
       album: formatDate(episode.date, { day: "numeric", month: "long", year: "numeric" }),
     });
     const audio = audioRef.current;
