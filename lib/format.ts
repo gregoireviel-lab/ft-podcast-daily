@@ -1,15 +1,51 @@
 /**
  * Pure formatting helpers — no React, no DOM — so they are unit-testable.
  */
-import type { Episode } from "@/types/episode";
+import type { Episode, EpisodeSource } from "@/types/episode";
+
+/**
+ * Parse the (optional) `sources` column into a clean EpisodeSource[]. The
+ * pipeline may store it as jsonb (array/object) or a JSON string. Anything
+ * malformed degrades gracefully to an empty list. Only well-formed
+ * `{ title, url }` entries survive.
+ */
+export function parseSources(raw: unknown): EpisodeSource[] {
+  if (raw == null) return [];
+  let value = raw;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): EpisodeSource | null => {
+      if (!item || typeof item !== "object") return null;
+      const o = item as Record<string, unknown>;
+      const url = typeof o.url === "string" ? o.url.trim() : "";
+      if (!url) return null;
+      const title =
+        typeof o.title === "string" && o.title.trim() ? o.title.trim() : url;
+      return { title, url };
+    })
+    .filter((s): s is EpisodeSource => s !== null);
+}
 
 /**
  * Map a raw Neon row (loose shape) to a typed Episode. Kept here (pure, no
  * `server-only`) so it can be unit-tested. The HTTP driver returns DATE and
  * TIMESTAMPTZ as strings; `date` is normalised to plain YYYY-MM-DD.
+ * `script`/`sources` are optional — mapped only when the pipeline provides them.
  */
 export function mapEpisodeRow(row: Record<string, unknown>): Episode {
   const rawDate = String(row.date ?? "");
+  const script =
+    typeof row.script === "string" && row.script.trim() ? row.script : undefined;
+  const sources = parseSources(row.sources);
   return {
     id: String(row.id ?? ""),
     date: rawDate.slice(0, 10),
@@ -18,6 +54,8 @@ export function mapEpisodeRow(row: Record<string, unknown>): Episode {
     duration_sec: Number(row.duration_sec ?? 0),
     audio_url: String(row.audio_url ?? ""),
     created_at: String(row.created_at ?? ""),
+    ...(script ? { script } : {}),
+    ...(sources.length ? { sources } : {}),
   };
 }
 

@@ -3,18 +3,25 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import type { Episode } from "@/types/episode";
 import { formatTime, formatDate } from "@/lib/format";
+import { BrandGlyph } from "./BrandMark";
 
 interface AudioPlayerProps {
   episode: Episode | null;
   /** Increments each time the user explicitly taps a card -> trigger autoplay. */
   playToken?: number;
+  /** Bubbles play/pause state up so the list can show the equalizer. */
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 const SPEEDS = [1, 1.25, 1.5, 2] as const;
 const SKIP = 15;
 const posKey = (id: string) => `ftpod:pos:${id}`;
 
-export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps) {
+export default function AudioPlayer({
+  episode,
+  playToken = 0,
+  onPlayingChange,
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -22,6 +29,15 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [speedIdx, setSpeedIdx] = useState(0);
+  const [showRemaining, setShowRemaining] = useState(false);
+
+  const setPlaying = useCallback(
+    (p: boolean) => {
+      setIsPlaying(p);
+      onPlayingChange?.(p);
+    },
+    [onPlayingChange]
+  );
 
   // Persist playback position (resume where you left off), throttled to ~5s.
   const lastSavedRef = useRef(0);
@@ -164,7 +180,7 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
   };
 
   const onEnded = () => {
-    setIsPlaying(false);
+    setPlaying(false);
     setCurrentTime(0);
     if (episode) {
       try {
@@ -177,32 +193,39 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
 
   const onError = () => {
     setIsBuffering(false);
-    setIsPlaying(false);
+    setPlaying(false);
     setError("Impossible de lire l'audio. Réessaie plus tard.");
   };
 
+  const shellClass =
+    "fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-elevated/95 backdrop-blur-md";
+
   if (!episode) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-[#181818] border-t border-[#282828] h-[72px] flex items-center justify-center">
-        <p className="text-[#727272] text-sm">Sélectionne un épisode pour écouter</p>
+      <div className={`${shellClass} pb-[env(safe-area-inset-bottom)]`}>
+        <div className="mx-auto flex h-[68px] max-w-2xl items-center justify-center px-5">
+          <p className="text-sm text-subtle">Sélectionne un épisode pour écouter</p>
+        </div>
       </div>
     );
   }
 
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const total = duration || 0;
+  const pct = total > 0 ? (currentTime / total) * 100 : 0;
+  const remaining = Math.max(0, total - currentTime);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#181818] border-t border-[#282828] px-4 py-3 z-50">
+    <div className={`${shellClass} px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]`}>
       <audio
         ref={audioRef}
         preload="metadata"
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
         onPlaying={() => {
           setIsBuffering(false);
-          setIsPlaying(true);
+          setPlaying(true);
           setError(null);
         }}
         onWaiting={() => setIsBuffering(true)}
@@ -210,20 +233,26 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
         onError={onError}
       />
 
-      <div className="flex items-center gap-3 mb-2 max-w-2xl mx-auto">
-        <div className="w-10 h-10 rounded bg-[#1DB954] flex items-center justify-center shrink-0">
-          <svg className="w-5 h-5 text-black" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 1a9 9 0 0 1 9 9v7a3 3 0 0 1-3 3h-1v-8h2V10A8 8 0 0 0 4 10v2h2v8H5a3 3 0 0 1-3-3v-7a9 9 0 0 1 9-9Z" />
-          </svg>
+      <div className="mx-auto flex max-w-2xl items-center gap-3">
+        {/* Artwork */}
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
+          <BrandGlyph className="h-6 w-6" />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-medium truncate">{episode.title}</p>
-          <p className="text-[#b3b3b3] text-xs">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-fg">{episode.title}</p>
+          <p className="truncate text-xs text-subtle">
             {error ? (
-              <span className="text-red-400">{error}</span>
+              <span className="text-danger">{error}</span>
+            ) : isBuffering ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                Chargement…
+              </span>
             ) : (
-              formatDate(episode.date, { weekday: "long", day: "numeric", month: "long" })
+              <span className="capitalize">
+                {formatDate(episode.date, { weekday: "long", day: "numeric", month: "long" })}
+              </span>
             )}
           </p>
         </div>
@@ -231,7 +260,7 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
         {/* Speed */}
         <button
           onClick={cycleSpeed}
-          className="text-[#b3b3b3] hover:text-white text-xs font-semibold tabular-nums w-11 h-8 rounded-full border border-[#3E3E3E] hover:border-[#727272] transition-colors shrink-0"
+          className="h-11 w-11 shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg"
           aria-label={`Vitesse de lecture ${SPEEDS[speedIdx]}x, changer`}
         >
           {SPEEDS[speedIdx]}×
@@ -240,10 +269,10 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
         {/* Skip back 15s */}
         <button
           onClick={() => skip(-SKIP)}
-          className="text-[#b3b3b3] hover:text-white shrink-0"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg"
           aria-label="Reculer de 15 secondes"
         >
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M11 8V5l-5 5 5 5v-3c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5H4a7 7 0 1 0 7-7z" />
           </svg>
         </button>
@@ -251,57 +280,80 @@ export default function AudioPlayer({ episode, playToken = 0 }: AudioPlayerProps
         {/* Play / Pause */}
         <button
           onClick={togglePlay}
-          className="w-10 h-10 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 transition-transform shrink-0"
+          className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30 transition-transform duration-150 ease-[var(--ease)] hover:scale-105 active:scale-95 motion-reduce:hover:scale-100"
           aria-label={isPlaying ? "Pause" : "Lecture"}
         >
-          {isBuffering ? (
-            <svg className="w-4 h-4 text-black animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          {/* discreet buffering ring */}
+          {isBuffering && (
+            <span
+              className="absolute inset-[-3px] animate-spin rounded-full border-2 border-transparent border-t-accent/70 motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          )}
+          <span className="relative grid place-items-center">
+            <svg
+              className={`col-start-1 row-start-1 h-5 w-5 transition-all duration-150 ${
+                isPlaying ? "scale-100 opacity-100" : "scale-50 opacity-0"
+              }`}
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
             </svg>
-          ) : isPlaying ? (
-            <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg
+              className={`col-start-1 row-start-1 ml-0.5 h-5 w-5 transition-all duration-150 ${
+                isPlaying ? "scale-50 opacity-0" : "scale-100 opacity-100"
+              }`}
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
               <path d="M8 5v14l11-7z" />
             </svg>
-          )}
+          </span>
         </button>
 
         {/* Skip forward 15s */}
         <button
           onClick={() => skip(SKIP)}
-          className="text-[#b3b3b3] hover:text-white shrink-0"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg"
           aria-label="Avancer de 15 secondes"
         >
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13 8V5l5 5-5 5v-3c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h2a7 7 0 1 1-7-7z" />
           </svg>
         </button>
       </div>
 
-      {/* Accessible progress slider (native keyboard support) */}
-      <div className="flex items-center gap-2 max-w-2xl mx-auto">
-        <span className="text-[#727272] text-xs w-9 text-right tabular-nums">
+      {/* Progress — visible draggable thumb, keyboard-accessible native range */}
+      <div className="mx-auto mt-1.5 flex max-w-2xl items-center gap-2.5">
+        <span className="w-10 text-right text-[0.6875rem] font-medium tabular-nums text-subtle">
           {formatTime(currentTime)}
         </span>
         <input
           type="range"
           min={0}
-          max={duration || 0}
-          step={1}
-          value={Math.min(currentTime, duration || 0)}
+          max={total}
+          step={0.1}
+          value={Math.min(currentTime, total)}
           onChange={(e) => seekTo(Number(e.target.value))}
           aria-label="Progression de la lecture"
-          aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(duration)}`}
-          className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer accent-[#1DB954]"
-          style={{
-            background: `linear-gradient(to right, #1DB954 ${pct}%, #535353 ${pct}%)`,
-          }}
+          aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(total)}`}
+          className="player-range flex-1"
+          style={
+            {
+              "--range-bg": `linear-gradient(to right, var(--accent) ${pct}%, #3a3a42 ${pct}%)`,
+            } as React.CSSProperties
+          }
         />
-        <span className="text-[#727272] text-xs w-9 tabular-nums">{formatTime(duration)}</span>
+        <button
+          onClick={() => setShowRemaining((s) => !s)}
+          className="w-10 text-left text-[0.6875rem] font-medium tabular-nums text-subtle transition-colors hover:text-fg"
+          aria-label={showRemaining ? "Afficher la durée totale" : "Afficher le temps restant"}
+        >
+          {showRemaining ? `-${formatTime(remaining)}` : formatTime(total)}
+        </button>
       </div>
     </div>
   );

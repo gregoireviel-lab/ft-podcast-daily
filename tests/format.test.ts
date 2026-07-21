@@ -59,6 +59,38 @@ eq("mapEpisodeRow title", mapped.title, "Test");
 const partial = mapEpisodeRow({ id: "x", date: "2026-01-01" });
 eq("mapEpisodeRow missing summary -> ''", partial.summary, "");
 eq("mapEpisodeRow missing duration -> 0", partial.duration_sec, 0);
+// Optional script/sources absent by default (columns not yet in DB).
+assert("mapEpisodeRow no script by default", partial.script === undefined);
+assert("mapEpisodeRow no sources by default", partial.sources === undefined);
+
+// --- optional script + sources (COS-0064 / COS-0068) ---
+const enriched = mapEpisodeRow({
+  id: "y",
+  date: "2026-02-02",
+  script: "  Full narration.  ",
+  sources: [
+    { title: "FT article", url: "https://ft.com/a" },
+    { url: "https://ft.com/b" }, // title defaults to url
+    { title: "bad", url: "" }, // dropped (no url)
+    "garbage", // dropped
+  ],
+});
+eq("mapEpisodeRow keeps script", enriched.script, "  Full narration.  ");
+eq("mapEpisodeRow sources length (invalid dropped)", enriched.sources?.length, 2);
+eq("mapEpisodeRow source title kept", enriched.sources?.[0].title, "FT article");
+eq("mapEpisodeRow source title defaults to url", enriched.sources?.[1].title, "https://ft.com/b");
+
+// sources may arrive as a JSON string (jsonb serialised)
+const fromString = mapEpisodeRow({
+  id: "z",
+  date: "2026-03-03",
+  sources: '[{"title":"S","url":"https://x.com"}]',
+});
+eq("parseSources from JSON string", fromString.sources?.[0].url, "https://x.com");
+// blank / malformed script + sources degrade to undefined
+const blank = mapEpisodeRow({ id: "w", date: "2026-04-04", script: "   ", sources: "not json" });
+assert("blank script -> undefined", blank.script === undefined);
+assert("malformed sources -> undefined", blank.sources === undefined);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

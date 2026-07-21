@@ -1,4 +1,5 @@
 import EpisodeListClient from "@/components/EpisodeList";
+import { BrandGlyph } from "@/components/BrandMark";
 import { getEpisodes } from "@/lib/episodes";
 import type { Episode } from "@/types/episode";
 
@@ -16,34 +17,45 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#121212]">
-      {/* Header */}
-      <div className="bg-gradient-to-b from-[#1a2a1a] to-[#121212] px-4 pt-8 pb-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-full bg-[#1DB954] flex items-center justify-center shrink-0">
-              <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 1a9 9 0 0 1 9 9v7a3 3 0 0 1-3 3h-1v-8h2V10A8 8 0 0 0 4 10v2h2v8H5a3 3 0 0 1-3-3v-7a9 9 0 0 1 9-9Z" />
-              </svg>
+    <main className="min-h-screen bg-bg">
+      {/* Header — soft accent-tinted wash for depth, no hard gradient banding */}
+      <header className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            background:
+              "radial-gradient(120% 100% at 15% 0%, rgba(255,178,122,0.10), transparent 55%)",
+          }}
+          aria-hidden="true"
+        />
+        <div className="relative mx-auto max-w-2xl px-5 pt-[max(2.5rem,env(safe-area-inset-top))] pb-7">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent text-accent-contrast shadow-lg shadow-black/30">
+              <BrandGlyph className="h-7 w-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">FT Daily</h1>
-              <p className="text-[#b3b3b3] text-sm">Briefing Financial Times · IA</p>
+              <h1 className="font-serif text-[1.7rem] font-semibold leading-none tracking-tight text-fg">
+                FT Daily
+              </h1>
+              <p className="mt-1.5 text-sm text-muted">
+                Briefing Financial Times · synthèse IA
+              </p>
             </div>
           </div>
-          <p className="text-[#727272] text-xs mt-3">
-            Synthèse audio quotidienne des articles FT — générée chaque matin à 7h.
+          <p className="mt-4 max-w-md text-[0.8125rem] leading-relaxed text-subtle">
+            Chaque matin à 7h, l&apos;essentiel du Financial Times condensé en un
+            épisode audio à écouter en quelques minutes.
           </p>
         </div>
-      </div>
+      </header>
 
       {/* Episode list */}
-      <div className="max-w-2xl mx-auto px-4 py-4">
-        <h2 className="text-[#b3b3b3] text-xs font-semibold uppercase tracking-widest mb-3">
+      <section className="mx-auto max-w-2xl px-5 pb-4">
+        <h2 className="mb-3 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-subtle">
           Épisodes récents
         </h2>
         <EpisodeListClient episodes={episodes} loadError={loadError} />
-      </div>
+      </section>
     </main>
   );
 }
