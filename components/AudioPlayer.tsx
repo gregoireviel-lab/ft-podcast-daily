@@ -253,24 +253,25 @@ export default function AudioPlayer({
   const pct = total > 0 ? (currentTime / total) * 100 : 0;
   const remaining = Math.max(0, total - currentTime);
 
-  // Transport controls, rendered inline on desktop and as their own centered
-  // row on mobile (COS-0069, Spotify-like hierarchy: title → progress →
-  // controls). A helper (fresh JSX per call) keeps the two placements in sync.
-  const renderControls = (opts?: { size?: "sm" | "lg" }) => {
+  // Speed button — shown next to title on mobile, inline with controls on desktop.
+  const renderSpeed = (cls?: string) => (
+    <button
+      onClick={cycleSpeed}
+      className={`h-11 w-11 shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg ${cls ?? ""}`}
+      aria-label={`Vitesse de lecture ${SPEEDS[speedIdx]}x, changer`}
+    >
+      {SPEEDS[speedIdx]}×
+    </button>
+  );
+
+  // Transport controls (skip back + play + skip forward).
+  // Mobile uses size "lg" (below seek bar); desktop uses default (inline right).
+  const renderTransport = (opts?: { size?: "sm" | "lg" }) => {
     const big = opts?.size === "lg";
     const btn = big ? "h-12 w-12" : "h-11 w-11";
     const play = big ? "h-14 w-14" : "h-12 w-12";
     return (
       <>
-        {/* Speed */}
-        <button
-          onClick={cycleSpeed}
-          className={`${btn} shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg`}
-          aria-label={`Vitesse de lecture ${SPEEDS[speedIdx]}x, changer`}
-        >
-          {SPEEDS[speedIdx]}×
-        </button>
-
         {/* Skip back 15s */}
         <button
           onClick={() => skip(-SKIP)}
@@ -288,7 +289,6 @@ export default function AudioPlayer({
           className={`${play} relative flex shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30 transition-transform duration-150 ease-[var(--ease)] hover:scale-105 active:scale-95 motion-reduce:hover:scale-100`}
           aria-label={isPlaying ? "Pause" : "Lecture"}
         >
-          {/* discreet buffering ring */}
           {isBuffering && (
             <span
               className="absolute inset-[-3px] animate-spin rounded-full border-2 border-transparent border-t-accent/70 motion-reduce:animate-none"
@@ -365,13 +365,8 @@ export default function AudioPlayer({
         onError={onError}
       />
 
-      {/* Row 1 mobile — controls above title (COS-0069 Spotify-style hierarchy) */}
-      <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 sm:hidden">
-        {renderControls({ size: "lg" })}
-      </div>
-
-      {/* Row 2 — identity (title always visible) + inline controls on desktop */}
-      <div className="mx-auto mt-2 flex max-w-2xl items-center gap-3 sm:mt-0">
+      {/* Row 1 — identity: artwork | title/subtitle | speed (mobile right) | all controls (desktop) */}
+      <div className="mx-auto flex max-w-2xl items-center gap-3">
         {/* Artwork */}
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
           <BrandGlyph className="h-6 w-6" />
@@ -382,13 +377,17 @@ export default function AudioPlayer({
           <p className="truncate text-xs text-subtle">{subtitle}</p>
         </div>
 
-        {/* Desktop: controls inline on the right */}
+        {/* Speed: right of title on mobile */}
+        <div className="sm:hidden">{renderSpeed()}</div>
+
+        {/* Desktop: speed + transport inline on the right */}
         <div className="hidden shrink-0 items-center gap-1 sm:flex">
-          {renderControls()}
+          {renderSpeed()}
+          {renderTransport()}
         </div>
       </div>
 
-      {/* Row 3 — progress (visible draggable thumb, keyboard-accessible range) */}
+      {/* Row 2 — progress (visible draggable thumb, keyboard-accessible range) */}
       <div className="mx-auto mt-1.5 flex max-w-2xl items-center gap-2.5">
         <span className="w-10 text-right text-[0.6875rem] font-medium tabular-nums text-subtle">
           {formatTime(currentTime)}
@@ -416,6 +415,11 @@ export default function AudioPlayer({
         >
           {showRemaining ? `-${formatTime(remaining)}` : formatTime(total)}
         </button>
+      </div>
+
+      {/* Row 3 mobile — transport controls below seek bar */}
+      <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-3 sm:hidden">
+        {renderTransport({ size: "lg" })}
       </div>
     </div>
   );
