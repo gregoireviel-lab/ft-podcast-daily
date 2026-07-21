@@ -15,7 +15,7 @@ import type { Episode } from "@/types/episode";
 export async function getEpisodes(maxResults = 30): Promise<Episode[]> {
   const sql = getSql();
   const rows = await sql`
-    SELECT id, date, title, summary, duration_sec, audio_url, created_at
+    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources
     FROM episodes
     ORDER BY date DESC
     LIMIT ${maxResults}
@@ -29,7 +29,7 @@ export async function getEpisodes(maxResults = 30): Promise<Episode[]> {
 export async function getEpisodeById(id: string): Promise<Episode | null> {
   const sql = getSql();
   const rows = await sql`
-    SELECT id, date, title, summary, duration_sec, audio_url, created_at
+    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources
     FROM episodes
     WHERE id = ${id}
     LIMIT 1
