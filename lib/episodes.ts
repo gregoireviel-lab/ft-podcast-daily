@@ -7,15 +7,15 @@ import type { Episode } from "@/types/episode";
  * Fetch the N most recent episodes from Neon, newest first.
  * Same signature as the previous Firestore implementation.
  *
- * NOTE (COS-0064 / COS-0068): once the pipeline adds the `script` (text) and
- * `sources` (jsonb) columns to the `episodes` table, add them to the SELECT
- * lists below (`..., script, sources`). `mapEpisodeRow` already maps them
- * defensively, so the UI will light up with zero further changes.
+ * NOTE (COS-0064 / COS-0068 / COS-0087): the `script` (text), `sources` (jsonb)
+ * and `highlights` (jsonb) columns are selected below. `mapEpisodeRow` maps them
+ * all defensively (empty/absent -> omitted), so rows without them degrade
+ * gracefully with zero further changes.
  */
 export async function getEpisodes(maxResults = 30): Promise<Episode[]> {
   const sql = getSql();
   const rows = await sql`
-    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources
+    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources, highlights
     FROM episodes
     ORDER BY date DESC
     LIMIT ${maxResults}
@@ -29,7 +29,7 @@ export async function getEpisodes(maxResults = 30): Promise<Episode[]> {
 export async function getEpisodeById(id: string): Promise<Episode | null> {
   const sql = getSql();
   const rows = await sql`
-    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources
+    SELECT id, date, title, summary, duration_sec, audio_url, created_at, script, sources, highlights
     FROM episodes
     WHERE id = ${id}
     LIMIT 1

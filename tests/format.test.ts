@@ -1,5 +1,11 @@
 // Lightweight assertion tests (no framework) — run with: pnpm test
-import { formatTime, formatDuration, formatDate, mapEpisodeRow } from "../lib/format";
+import {
+  formatTime,
+  formatDuration,
+  formatDate,
+  mapEpisodeRow,
+  parseHighlights,
+} from "../lib/format";
 
 let pass = 0;
 let fail = 0;
@@ -62,6 +68,7 @@ eq("mapEpisodeRow missing duration -> 0", partial.duration_sec, 0);
 // Optional script/sources absent by default (columns not yet in DB).
 assert("mapEpisodeRow no script by default", partial.script === undefined);
 assert("mapEpisodeRow no sources by default", partial.sources === undefined);
+assert("mapEpisodeRow no highlights by default", partial.highlights === undefined);
 
 // --- optional script + sources (COS-0064 / COS-0068) ---
 const enriched = mapEpisodeRow({
@@ -91,6 +98,53 @@ eq("parseSources from JSON string", fromString.sources?.[0].url, "https://x.com"
 const blank = mapEpisodeRow({ id: "w", date: "2026-04-04", script: "   ", sources: "not json" });
 assert("blank script -> undefined", blank.script === undefined);
 assert("malformed sources -> undefined", blank.sources === undefined);
+
+// --- highlights (COS-0087) ---
+// Well-formed, out-of-order input is sorted by rank ascending.
+const hl = parseHighlights([
+  { rank: 2, title: "Second", blurb: "b2" },
+  { rank: 1, title: "First", blurb: "b1" },
+  { rank: 3, title: "Third", blurb: "b3" },
+]);
+eq("parseHighlights length", hl.length, 3);
+eq("parseHighlights sorted rank[0]", hl[0].rank, 1);
+eq("parseHighlights sorted title[0]", hl[0].title, "First");
+eq("parseHighlights sorted rank[2]", hl[2].rank, 3);
+
+// Malformed entries are dropped; rank strings are coerced; blank titles rejected.
+const hlDirty = parseHighlights([
+  { rank: "1", title: "  Coerced rank  ", blurb: "  trimmed  " }, // rank "1" -> 1, trimmed
+  { rank: 2, title: "", blurb: "no title" }, // dropped (blank title)
+  { rank: 3 }, // dropped (no title)
+  { title: "no rank", blurb: "x" }, // dropped (NaN rank)
+  "garbage", // dropped
+  null, // dropped
+]);
+eq("parseHighlights drops invalid", hlDirty.length, 1);
+eq("parseHighlights coerces rank", hlDirty[0].rank, 1);
+eq("parseHighlights trims title", hlDirty[0].title, "Coerced rank");
+eq("parseHighlights trims blurb", hlDirty[0].blurb, "trimmed");
+
+// Missing blurb degrades to empty string, entry still kept.
+const hlNoBlurb = parseHighlights([{ rank: 1, title: "Only title" }]);
+eq("parseHighlights missing blurb -> ''", hlNoBlurb[0].blurb, "");
+
+// null / non-array / JSON string handling.
+eq("parseHighlights null -> []", parseHighlights(null).length, 0);
+eq("parseHighlights non-array -> []", parseHighlights({ rank: 1 }).length, 0);
+eq("parseHighlights bad json string -> []", parseHighlights("not json").length, 0);
+const hlFromString = parseHighlights('[{"rank":1,"title":"S","blurb":"b"}]');
+eq("parseHighlights from JSON string", hlFromString[0].title, "S");
+
+// mapEpisodeRow wires highlights through and omits when empty.
+const withHl = mapEpisodeRow({
+  id: "h",
+  date: "2026-05-05",
+  highlights: [{ rank: 1, title: "News", blurb: "blurb" }],
+});
+eq("mapEpisodeRow highlights length", withHl.highlights?.length, 1);
+const emptyHl = mapEpisodeRow({ id: "h2", date: "2026-05-06", highlights: [] });
+assert("mapEpisodeRow empty highlights -> undefined", emptyHl.highlights === undefined);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

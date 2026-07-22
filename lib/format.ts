@@ -1,7 +1,7 @@
 /**
  * Pure formatting helpers — no React, no DOM — so they are unit-testable.
  */
-import type { Episode, EpisodeSource } from "@/types/episode";
+import type { Episode, EpisodeSource, EpisodeHighlight } from "@/types/episode";
 
 /**
  * Parse the (optional) `sources` column into a clean EpisodeSource[]. The
@@ -36,6 +36,41 @@ export function parseSources(raw: unknown): EpisodeSource[] {
 }
 
 /**
+ * Parse the (optional) `highlights` column into a clean EpisodeHighlight[]. The
+ * pipeline stores it as jsonb (array of `{ rank, title, blurb }`) or a JSON
+ * string. Anything malformed degrades gracefully to an empty list. Only entries
+ * with a finite `rank` and a non-empty `title` survive, and the result is sorted
+ * by `rank` ascending (defensive — the pipeline already stores them sorted).
+ */
+export function parseHighlights(raw: unknown): EpisodeHighlight[] {
+  if (raw == null) return [];
+  let value = raw;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): EpisodeHighlight | null => {
+      if (!item || typeof item !== "object") return null;
+      const o = item as Record<string, unknown>;
+      const rank = Number(o.rank);
+      if (!Number.isFinite(rank)) return null;
+      const title = typeof o.title === "string" ? o.title.trim() : "";
+      if (!title) return null;
+      const blurb = typeof o.blurb === "string" ? o.blurb.trim() : "";
+      return { rank, title, blurb };
+    })
+    .filter((h): h is EpisodeHighlight => h !== null)
+    .sort((a, b) => a.rank - b.rank);
+}
+
+/**
  * Map a raw Neon row (loose shape) to a typed Episode. Kept here (pure, no
  * `server-only`) so it can be unit-tested. The HTTP driver returns DATE and
  * TIMESTAMPTZ as strings; `date` is normalised to plain YYYY-MM-DD.
@@ -46,6 +81,7 @@ export function mapEpisodeRow(row: Record<string, unknown>): Episode {
   const script =
     typeof row.script === "string" && row.script.trim() ? row.script : undefined;
   const sources = parseSources(row.sources);
+  const highlights = parseHighlights(row.highlights);
   return {
     id: String(row.id ?? ""),
     date: rawDate.slice(0, 10),
@@ -56,6 +92,7 @@ export function mapEpisodeRow(row: Record<string, unknown>): Episode {
     created_at: String(row.created_at ?? ""),
     ...(script ? { script } : {}),
     ...(sources.length ? { sources } : {}),
+    ...(highlights.length ? { highlights } : {}),
   };
 }
 

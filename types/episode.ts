@@ -5,6 +5,15 @@ export interface EpisodeSource {
   url: string;
 }
 
+export interface EpisodeHighlight {
+  /** 1-based importance rank (1 = most important). */
+  rank: number;
+  /** Short headline of the news item. */
+  title: string;
+  /** One-line explanatory blurb. */
+  blurb: string;
+}
+
 export interface Episode {
   id: string;
   date: string; // YYYY-MM-DD
@@ -23,4 +32,10 @@ export interface Episode {
    * column (jsonb) is not yet populated by the pipeline. Rendered when present.
    */
   sources?: EpisodeSource[];
+  /**
+   * Top-10 ranked news highlights (COS-0087). Optional: the `episodes.highlights`
+   * column (jsonb) may be empty/absent while the pipeline backfills. When present,
+   * rendered as a single-open accordion under the episode row, ordered by `rank`.
+   */
+  highlights?: EpisodeHighlight[];
 }
