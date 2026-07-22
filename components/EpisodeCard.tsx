@@ -2,6 +2,7 @@
 
 import type { Episode } from "@/types/episode";
 import { formatDate, formatDuration } from "@/lib/format";
+import ShareWhatsApp from "@/components/ShareWhatsApp";
 
 interface EpisodeCardProps {
   episode: Episode;
@@ -95,7 +96,7 @@ export default function EpisodeCard({
             aria-expanded={isExpanded}
             aria-controls={panelId}
             aria-label={`${isExpanded ? "Masquer" : "Afficher"} les ${highlights.length} temps forts : ${episode.title}`}
-            className="flex w-11 shrink-0 items-center justify-center self-stretch rounded-r-xl text-subtle transition-colors hover:text-accent focus-visible:text-accent"
+            className="flex w-11 shrink-0 items-center justify-center self-stretch text-subtle transition-colors hover:text-accent focus-visible:text-accent"
           >
             <svg
               className={`h-[18px] w-[18px] transition-transform duration-300 ease-[var(--ease)] ${
@@ -111,6 +112,14 @@ export default function EpisodeCard({
             </svg>
           </button>
         )}
+
+        {/* Share to WhatsApp — always the rightmost hit-zone (growth loop). */}
+        <ShareWhatsApp
+          episodeId={episode.id}
+          title={episode.title}
+          variant="icon"
+          className="rounded-r-xl"
+        />
       </div>
 
       {/* Accordion panel — smooth height via the grid-rows 0fr→1fr trick; content
