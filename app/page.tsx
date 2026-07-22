@@ -1,4 +1,5 @@
 import EpisodeListClient from "@/components/EpisodeList";
+import NotifyBell from "@/components/NotifyBell";
 import { BrandGlyph } from "@/components/BrandMark";
 import { getEpisodes } from "@/lib/episodes";
 import type { Episode } from "@/types/episode";
@@ -46,6 +47,9 @@ export default async function HomePage() {
             Every morning, the world&apos;s most important financial news condensed
             into a short audio episode — powered by AI.
           </p>
+          <div className="mt-4">
+            <NotifyBell />
+          </div>
         </div>
       </header>
 
