@@ -18,17 +18,10 @@ export default function EpisodeListClient({ episodes, loadError = false }: Props
   // Bumped on every explicit tap -> tells the player to start playing.
   const [playToken, setPlayToken] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  // Single-open accordion: id of the episode whose Top-10 panel is open (or null).
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleSelect = (episode: Episode) => {
     setActiveEpisode(episode);
     setPlayToken((t) => t + 1); // tap-to-play
-  };
-
-  // Opening one row closes any other — one panel open at a time.
-  const handleToggleExpand = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   if (loadError) {
@@ -77,8 +70,6 @@ export default function EpisodeListClient({ episodes, loadError = false }: Props
               isActive={activeEpisode?.id === episode.id}
               isPlaying={isPlaying}
               onSelect={handleSelect}
-              isExpanded={expandedId === episode.id}
-              onToggleExpand={() => handleToggleExpand(episode.id)}
             />
           </li>
         ))}

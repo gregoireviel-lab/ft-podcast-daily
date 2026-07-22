@@ -83,6 +83,28 @@ export default function EpisodeDetail({ episode }: Props) {
           </section>
         )}
 
+        {/* Top-10 highlights of the day (moved here from the home accordion) */}
+        {episode.highlights && episode.highlights.length > 0 && (
+          <section>
+            <SectionLabel>Top {episode.highlights.length} du jour</SectionLabel>
+            <ol className="space-y-2.5">
+              {episode.highlights.map((h, i) => (
+                <li key={`${h.rank}-${i}`} className="flex gap-3">
+                  <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-accent/10 text-[0.6875rem] font-semibold tabular-nums text-accent">
+                    {h.rank}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[0.875rem] font-semibold leading-snug text-fg">{h.title}</p>
+                    {h.blurb && (
+                      <p className="mt-0.5 text-[0.8125rem] leading-relaxed text-subtle">{h.blurb}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
         {/* Full script (COS-0064) — collapsible, comfortable reading type */}
         {episode.script && <ScriptSection script={episode.script} />}
 
