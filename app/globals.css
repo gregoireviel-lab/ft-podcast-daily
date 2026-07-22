@@ -147,6 +147,53 @@ body {
   animation: rise 0.45s var(--ease) both;
 }
 
+/* --- L99 button effects --------------------------------------------------- */
+
+/* Ripple that emanates from the tap point */
+@keyframes ripple-out {
+  from { transform: scale(0); opacity: 0.45; }
+  to   { transform: scale(3); opacity: 0; }
+}
+.ripple-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  transform-origin: center;
+  animation: ripple-out 0.55s ease-out forwards;
+}
+
+/* Skip button flash on tap */
+@keyframes skip-flash {
+  0%, 100% { background: transparent; }
+  35%       { background: rgba(255,255,255,0.09); }
+}
+.skip-flash {
+  animation: skip-flash 0.3s ease-out both;
+}
+
+/* Speed digit flip-in when value changes */
+@keyframes digit-flip-in {
+  from { transform: translateY(60%); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+.digit-flip {
+  display: inline-block;
+  animation: digit-flip-in 0.18s var(--ease) both;
+}
+
+/* Play button spring-pop (triggered by JS class toggle) */
+@keyframes play-spring {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(0.88); }
+  55%  { transform: scale(1.10); }
+  75%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+.play-spring-active {
+  animation: play-spring 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+}
+
 /* --- Player progress slider: always-visible, draggable thumb -------------- */
 .player-range {
   -webkit-appearance: none;
@@ -192,12 +239,12 @@ body {
 }
 .player-range:hover::-webkit-slider-thumb,
 .player-range:active::-webkit-slider-thumb {
-  transform: scale(1.35);
+  transform: scale(1.45);
   background: var(--accent);
 }
 .player-range:hover::-moz-range-thumb,
 .player-range:active::-moz-range-thumb {
-  transform: scale(1.35);
+  transform: scale(1.45);
   background: var(--accent);
 }
 .player-range:focus-visible::-webkit-slider-thumb {
@@ -205,6 +252,17 @@ body {
 }
 .player-range:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 4px var(--accent-tint);
+}
+/* Drag state: glowing thumb */
+.player-range.is-dragging::-webkit-slider-thumb {
+  transform: scale(1.55);
+  background: var(--accent);
+  box-shadow: 0 0 0 6px var(--accent-tint), 0 1px 6px rgba(0,0,0,0.6);
+}
+.player-range.is-dragging::-moz-range-thumb {
+  transform: scale(1.55);
+  background: var(--accent);
+  box-shadow: 0 0 0 6px var(--accent-tint), 0 1px 6px rgba(0,0,0,0.6);
 }
 
 /* --- Respect reduced-motion ---------------------------------------------- */

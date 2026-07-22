@@ -1,13 +1,13 @@
 {
-  "name": "Kairos",
-  "short_name": "Kairos",
-  "description": "Ton briefing quotidien — synthèse audio générée par IA.",
+  "name": "The Essential",
+  "short_name": "The Essential",
+  "description": "Your daily essential financial briefing — powered by AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f11",
   "theme_color": "#0f0f11",
   "categories": ["news", "business", "podcasts"],
-  "lang": "fr",
+  "lang": "en",
   "icons": [
     {
       "src": "/icons/icon-192.png",

@@ -5,34 +5,34 @@ import Pwa from "@/components/Pwa";
 
 const SITE_URL = "https://ft-podcast-daily.vercel.app";
 const DESCRIPTION =
-  "Ton briefing quotidien — l'essentiel de l'actualité économique en un épisode audio, généré chaque matin par IA.";
+  "Your daily essential financial briefing — the world's most important financial news, condensed into a short daily audio episode powered by AI.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Kairos",
-    template: "%s — Kairos",
+    default: "The Essential",
+    template: "%s — The Essential",
   },
   description: DESCRIPTION,
-  applicationName: "Kairos",
+  applicationName: "The Essential",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Kairos",
+    title: "The Essential",
   },
   openGraph: {
     type: "website",
-    siteName: "Kairos",
-    title: "Kairos",
+    siteName: "The Essential",
+    title: "The Essential",
     description: DESCRIPTION,
     url: SITE_URL,
-    locale: "fr_FR",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Kairos" }],
+    locale: "en_US",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "The Essential" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Kairos",
+    title: "The Essential",
     description: DESCRIPTION,
     images: ["/og.png"],
   },
@@ -51,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full">
+    <html lang="en" className="h-full">
       <body className="min-h-full bg-bg text-fg antialiased">
         {children}
         <Pwa />

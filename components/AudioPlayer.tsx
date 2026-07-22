@@ -8,17 +8,16 @@ import { BrandGlyph } from "./BrandMark";
 
 interface AudioPlayerProps {
   episode: Episode | null;
-  /** Increments each time the user explicitly taps a card -> trigger autoplay. */
   playToken?: number;
-  /** Bubbles play/pause state up so the list can show the equalizer. */
   onPlayingChange?: (playing: boolean) => void;
 }
 
 const SPEEDS = [1, 1.25, 1.5, 2] as const;
 const SKIP = 15;
 const posKey = (id: string) => `ftpod:pos:${id}`;
-// Listen-progress milestones we report to analytics (COS-0062).
 const MILESTONES = [25, 50, 75] as const;
+
+type Ripple = { id: number; x: number; y: number; size: number };
 
 export default function AudioPlayer({
   episode,
@@ -26,6 +25,7 @@ export default function AudioPlayer({
   onPlayingChange,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playBtnRef = useRef<HTMLButtonElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -33,10 +33,16 @@ export default function AudioPlayer({
   const [error, setError] = useState<string | null>(null);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [showRemaining, setShowRemaining] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [playRipples, setPlayRipples] = useState<Ripple[]>([]);
+  // bumped to force-reload audio (retry after error, or explicit reload)
+  const [retryCount, setRetryCount] = useState(0);
+  // used to animate speed digit on change
+  const [speedAnimKey, setSpeedAnimKey] = useState(0);
 
-  // Analytics guards (reset per episode) — fire each event at most once.
   const playedRef = useRef(false);
   const milestonesRef = useRef<Set<number>>(new Set());
+  const pendingPlayRef = useRef(false);
 
   const setPlaying = useCallback(
     (p: boolean) => {
@@ -46,7 +52,6 @@ export default function AudioPlayer({
     [onPlayingChange]
   );
 
-  // Persist playback position (resume where you left off), throttled to ~5s.
   const lastSavedRef = useRef(0);
   const savePosition = useCallback(
     (t: number) => {
@@ -54,7 +59,7 @@ export default function AudioPlayer({
       try {
         if (t > 3) localStorage.setItem(posKey(episode.id), String(Math.floor(t)));
       } catch {
-        /* localStorage may be unavailable (private mode) — ignore */
+        /* private mode */
       }
     },
     [episode]
@@ -69,7 +74,37 @@ export default function AudioPlayer({
     );
   }, []);
 
-  // --- Load a new episode -------------------------------------------------
+  // --- Ripple on play button -------------------------------------------
+  const addRipple = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.5;
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const id = Date.now() + Math.random();
+    setPlayRipples((prev) => [...prev, { id, x, y, size }]);
+    setTimeout(() => setPlayRipples((prev) => prev.filter((r) => r.id !== id)), 600);
+  };
+
+  // --- Spring pop on play button ----------------------------------------
+  const triggerSpring = () => {
+    const btn = playBtnRef.current;
+    if (!btn) return;
+    btn.classList.remove("play-spring-active");
+    void btn.offsetWidth; // force reflow to restart animation
+    btn.classList.add("play-spring-active");
+    setTimeout(() => btn.classList.remove("play-spring-active"), 450);
+  };
+
+  // --- Skip button flash ------------------------------------------------
+  const triggerSkipFlash = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = e.currentTarget;
+    btn.classList.remove("skip-flash");
+    void btn.offsetWidth;
+    btn.classList.add("skip-flash");
+    setTimeout(() => btn.classList.remove("skip-flash"), 350);
+  };
+
+  // --- Load a new episode or retry -------------------------------------
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !episode) return;
@@ -85,26 +120,30 @@ export default function AudioPlayer({
     audio.playbackRate = SPEEDS[speedIdx];
     audio.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episode?.id]);
+  }, [episode?.id, retryCount]);
 
-  // --- Autoplay on explicit tap ------------------------------------------
+  // --- Autoplay on explicit tap ----------------------------------------
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !episode || playToken === 0) return;
+    if (error) {
+      // Error state: retry loading, then autoplay
+      pendingPlayRef.current = true;
+      setRetryCount((c) => c + 1);
+      return;
+    }
     audio.play().catch(() => {
-      /* user gesture required — leave paused, no hard error */
+      /* gesture required — leave paused */
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playToken]);
 
-  // --- Media Session (lock screen / headset controls) --------------------
+  // --- Media Session ---------------------------------------------------
   useEffect(() => {
-    if (!episode || typeof navigator === "undefined" || !("mediaSession" in navigator)) {
-      return;
-    }
+    if (!episode || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.title,
-      artist: "Kairos",
+      artist: "The Essential",
       album: formatDate(episode.date, { day: "numeric", month: "long", year: "numeric" }),
     });
     const audio = audioRef.current;
@@ -119,18 +158,13 @@ export default function AudioPlayer({
     return () => {
       (["play", "pause", "seekbackward", "seekforward", "seekto"] as MediaSessionAction[]).forEach(
         (a) => {
-          try {
-            set(a, null);
-          } catch {
-            /* ignore */
-          }
+          try { set(a, null); } catch { /* ignore */ }
         }
       );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id, skip]);
 
-  // Save position on unmount / tab close.
   useEffect(() => {
     const handler = () => savePosition(audioRef.current?.currentTime ?? 0);
     window.addEventListener("pagehide", handler);
@@ -140,17 +174,18 @@ export default function AudioPlayer({
     };
   }, [savePosition]);
 
-  // --- Controls -----------------------------------------------------------
+  // --- Controls -------------------------------------------------------
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio || !episode) return;
-    if (audio.paused) audio.play().catch(() => setError("Lecture impossible"));
+    if (audio.paused) audio.play().catch(() => setError("Playback failed — try again."));
     else audio.pause();
   };
 
   const cycleSpeed = () => {
     const next = (speedIdx + 1) % SPEEDS.length;
     setSpeedIdx(next);
+    setSpeedAnimKey((k) => k + 1);
     if (audioRef.current) audioRef.current.playbackRate = SPEEDS[next];
   };
 
@@ -161,7 +196,7 @@ export default function AudioPlayer({
     setCurrentTime(t);
   };
 
-  // --- <audio> events drive state (never optimistic) ----------------------
+  // --- <audio> events -------------------------------------------------
   const onLoadedMetadata = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -176,6 +211,10 @@ export default function AudioPlayer({
     } catch {
       /* ignore */
     }
+    if (pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      audio.play().catch(() => {});
+    }
   };
 
   const onTimeUpdate = () => {
@@ -186,16 +225,12 @@ export default function AudioPlayer({
       lastSavedRef.current = audio.currentTime;
       savePosition(audio.currentTime);
     }
-    // Report listen-progress milestones once each (COS-0062).
     if (episode && audio.duration > 0) {
       const pctDone = (audio.currentTime / audio.duration) * 100;
       for (const m of MILESTONES) {
         if (pctDone >= m && !milestonesRef.current.has(m)) {
           milestonesRef.current.add(m);
-          captureEvent("episode_progress", {
-            episode_id: episode.id,
-            percent: m,
-          });
+          captureEvent("episode_progress", { episode_id: episode.id, percent: m });
         }
       }
     }
@@ -205,34 +240,22 @@ export default function AudioPlayer({
     setPlaying(false);
     setCurrentTime(0);
     if (episode) {
-      captureEvent("episode_completed", {
-        episode_id: episode.id,
-        title: episode.title,
-      });
-      try {
-        localStorage.removeItem(posKey(episode.id));
-      } catch {
-        /* ignore */
-      }
+      captureEvent("episode_completed", { episode_id: episode.id, title: episode.title });
+      try { localStorage.removeItem(posKey(episode.id)); } catch { /* ignore */ }
     }
   };
 
   const onError = () => {
     setIsBuffering(false);
     setPlaying(false);
-    setError("Impossible de lire l'audio. Réessaie plus tard.");
+    setError("Unable to play audio. Tap to retry.");
   };
 
   const onPlayEvent = () => {
     setPlaying(true);
-    // Fire "played" once per loaded episode (COS-0062).
     if (episode && !playedRef.current) {
       playedRef.current = true;
-      captureEvent("episode_played", {
-        episode_id: episode.id,
-        title: episode.title,
-        date: episode.date,
-      });
+      captureEvent("episode_played", { episode_id: episode.id, title: episode.title, date: episode.date });
     }
   };
 
@@ -243,7 +266,7 @@ export default function AudioPlayer({
     return (
       <div className={`${shellClass} pb-[env(safe-area-inset-bottom)]`}>
         <div className="mx-auto flex h-[68px] max-w-2xl items-center justify-center px-5">
-          <p className="text-sm text-subtle">Sélectionne un épisode pour écouter</p>
+          <p className="text-sm text-subtle">Select an episode to listen</p>
         </div>
       </div>
     );
@@ -253,42 +276,57 @@ export default function AudioPlayer({
   const pct = total > 0 ? (currentTime / total) * 100 : 0;
   const remaining = Math.max(0, total - currentTime);
 
-  // Speed button — shown next to title on mobile, inline with controls on desktop.
   const renderSpeed = (cls?: string) => (
     <button
       onClick={cycleSpeed}
-      className={`h-11 w-11 shrink-0 rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg ${cls ?? ""}`}
-      aria-label={`Vitesse de lecture ${SPEEDS[speedIdx]}x, changer`}
+      className={`h-11 w-11 shrink-0 overflow-hidden rounded-full text-xs font-bold tabular-nums text-muted transition-colors hover:bg-white/5 hover:text-fg ${cls ?? ""}`}
+      aria-label={`Playback speed ${SPEEDS[speedIdx]}x, tap to change`}
     >
-      {SPEEDS[speedIdx]}×
+      <span key={speedAnimKey} className="digit-flip inline-block">
+        {SPEEDS[speedIdx]}×
+      </span>
     </button>
   );
 
-  // Transport controls (skip back + play + skip forward).
-  // Mobile uses size "lg" (below seek bar); desktop uses default (inline right).
   const renderTransport = (opts?: { size?: "sm" | "lg" }) => {
     const big = opts?.size === "lg";
     const btn = big ? "h-12 w-12" : "h-11 w-11";
-    const play = big ? "h-14 w-14" : "h-12 w-12";
+    const playSize = big ? "h-14 w-14" : "h-12 w-12";
     return (
       <>
         {/* Skip back 15s */}
         <button
-          onClick={() => skip(-SKIP)}
-          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg`}
-          aria-label="Reculer de 15 secondes"
+          onClick={(e) => { triggerSkipFlash(e); skip(-SKIP); }}
+          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg active:scale-90`}
+          style={{ transition: "transform 0.12s cubic-bezier(0.34,1.56,0.64,1), background 0.15s" }}
+          aria-label="Skip back 15 seconds"
         >
           <svg className={big ? "h-7 w-7" : "h-6 w-6"} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M11 8V5l-5 5 5 5v-3c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5H4a7 7 0 1 0 7-7z" />
           </svg>
         </button>
 
-        {/* Play / Pause */}
+        {/* Play / Pause — spring physics + ripple */}
         <button
-          onClick={togglePlay}
-          className={`${play} relative flex shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30 transition-transform duration-150 ease-[var(--ease)] hover:scale-105 active:scale-95 motion-reduce:hover:scale-100`}
-          aria-label={isPlaying ? "Pause" : "Lecture"}
+          ref={playBtnRef}
+          onClick={(e) => {
+            addRipple(e);
+            triggerSpring();
+            togglePlay();
+          }}
+          className={`${playSize} relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-accent-contrast shadow-md shadow-black/30`}
+          style={{ transition: "transform 0.42s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s" }}
+          aria-label={isPlaying ? "Pause" : "Play"}
         >
+          {/* Ripples */}
+          {playRipples.map((r) => (
+            <span
+              key={r.id}
+              className="ripple-dot"
+              style={{ width: r.size, height: r.size, left: r.x, top: r.y }}
+            />
+          ))}
+          {/* Buffering ring */}
           {isBuffering && (
             <span
               className="absolute inset-[-3px] animate-spin rounded-full border-2 border-transparent border-t-accent/70 motion-reduce:animate-none"
@@ -321,9 +359,10 @@ export default function AudioPlayer({
 
         {/* Skip forward 15s */}
         <button
-          onClick={() => skip(SKIP)}
-          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg`}
-          aria-label="Avancer de 15 secondes"
+          onClick={(e) => { triggerSkipFlash(e); skip(SKIP); }}
+          className={`${btn} flex shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-fg active:scale-90`}
+          style={{ transition: "transform 0.12s cubic-bezier(0.34,1.56,0.64,1), background 0.15s" }}
+          aria-label="Skip forward 15 seconds"
         >
           <svg className={big ? "h-7 w-7" : "h-6 w-6"} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13 8V5l5 5-5 5v-3c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h2a7 7 0 1 1-7-7z" />
@@ -334,11 +373,19 @@ export default function AudioPlayer({
   };
 
   const subtitle = error ? (
-    <span className="text-danger">{error}</span>
+    <button
+      onClick={() => setRetryCount((c) => c + 1)}
+      className="flex items-center gap-1.5 text-danger hover:opacity-80"
+    >
+      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <span className="text-xs">{error}</span>
+    </button>
   ) : isBuffering ? (
     <span className="inline-flex items-center gap-1.5">
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-      Chargement…
+      Loading…
     </span>
   ) : (
     <span className="capitalize">
@@ -355,19 +402,14 @@ export default function AudioPlayer({
         onTimeUpdate={onTimeUpdate}
         onPlay={onPlayEvent}
         onPause={() => setPlaying(false)}
-        onPlaying={() => {
-          setIsBuffering(false);
-          onPlayEvent();
-          setError(null);
-        }}
+        onPlaying={() => { setIsBuffering(false); onPlayEvent(); setError(null); }}
         onWaiting={() => setIsBuffering(true)}
         onEnded={onEnded}
         onError={onError}
       />
 
-      {/* Row 1 — identity: artwork | title/subtitle | speed (mobile right) | all controls (desktop) */}
+      {/* Row 1 */}
       <div className="mx-auto flex max-w-2xl items-center gap-3">
-        {/* Artwork */}
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
           <BrandGlyph className="h-6 w-6" />
         </div>
@@ -377,17 +419,15 @@ export default function AudioPlayer({
           <p className="truncate text-xs text-subtle">{subtitle}</p>
         </div>
 
-        {/* Speed: right of title on mobile */}
         <div className="sm:hidden">{renderSpeed()}</div>
 
-        {/* Desktop: speed + transport inline on the right */}
         <div className="hidden shrink-0 items-center gap-1 sm:flex">
           {renderSpeed()}
           {renderTransport()}
         </div>
       </div>
 
-      {/* Row 2 — progress (visible draggable thumb, keyboard-accessible range) */}
+      {/* Row 2 — seek bar */}
       <div className="mx-auto mt-1.5 flex max-w-2xl items-center gap-2.5">
         <span className="w-10 text-right text-[0.6875rem] font-medium tabular-nums text-subtle">
           {formatTime(currentTime)}
@@ -399,9 +439,13 @@ export default function AudioPlayer({
           step={0.1}
           value={Math.min(currentTime, total)}
           onChange={(e) => seekTo(Number(e.target.value))}
-          aria-label="Progression de la lecture"
-          aria-valuetext={`${formatTime(currentTime)} sur ${formatTime(total)}`}
-          className="player-range flex-1"
+          onMouseDown={() => setIsDragging(true)}
+          onMouseUp={() => setIsDragging(false)}
+          onTouchStart={() => setIsDragging(true)}
+          onTouchEnd={() => setIsDragging(false)}
+          aria-label="Playback progress"
+          aria-valuetext={`${formatTime(currentTime)} of ${formatTime(total)}`}
+          className={`player-range flex-1 ${isDragging ? "is-dragging" : ""}`}
           style={
             {
               "--range-bg": `linear-gradient(to right, var(--accent) ${pct}%, #3a3a42 ${pct}%)`,
@@ -411,13 +455,13 @@ export default function AudioPlayer({
         <button
           onClick={() => setShowRemaining((s) => !s)}
           className="w-10 text-left text-[0.6875rem] font-medium tabular-nums text-subtle transition-colors hover:text-fg"
-          aria-label={showRemaining ? "Afficher la durée totale" : "Afficher le temps restant"}
+          aria-label={showRemaining ? "Show total duration" : "Show remaining time"}
         >
           {showRemaining ? `-${formatTime(remaining)}` : formatTime(total)}
         </button>
       </div>
 
-      {/* Row 3 mobile — transport controls below seek bar */}
+      {/* Row 3 mobile — transport */}
       <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-3 sm:hidden">
         {renderTransport({ size: "lg" })}
       </div>

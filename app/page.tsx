@@ -35,16 +35,16 @@ export default async function HomePage() {
             </div>
             <div>
               <h1 className="font-serif text-[1.7rem] font-semibold leading-none tracking-tight text-fg">
-                Kairos
+                The Essential
               </h1>
               <p className="mt-1.5 text-sm text-muted">
-                Ton briefing mondial quotidien · synthèse IA
+                Your daily essential financial briefing
               </p>
             </div>
           </div>
           <p className="mt-4 max-w-md text-[0.8125rem] leading-relaxed text-subtle">
-            Chaque matin à 7h, l&apos;essentiel de l&apos;actualité mondiale condensé en un
-            épisode audio à écouter en quelques minutes.
+            Every morning, the world&apos;s most important financial news condensed
+            into a short audio episode — powered by AI.
           </p>
         </div>
       </header>
@@ -52,7 +52,7 @@ export default async function HomePage() {
       {/* Episode list */}
       <section className="mx-auto max-w-2xl px-5 pb-4">
         <h2 className="mb-3 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-subtle">
-          Épisodes récents
+          Recent episodes
         </h2>
         <EpisodeListClient episodes={episodes} loadError={loadError} />
       </section>
