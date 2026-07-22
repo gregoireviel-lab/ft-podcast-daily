@@ -48,6 +48,9 @@ export default function AudioPlayer({
     (p: boolean) => {
       setIsPlaying(p);
       onPlayingChange?.(p);
+      if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+        navigator.mediaSession.playbackState = p ? "playing" : "paused";
+      }
     },
     [onPlayingChange]
   );
@@ -72,6 +75,27 @@ export default function AudioPlayer({
       Math.max(0, audio.currentTime + delta),
       audio.duration || Infinity
     );
+  }, []);
+
+  // Keep the OS Now Playing scrubber in sync. iOS needs a valid position
+  // state (finite duration ≥ position) to treat the session as active and
+  // continue playback in the background / on lock.
+  const updatePositionState = useCallback(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    if (typeof navigator.mediaSession.setPositionState !== "function") return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    const dur = audio.duration;
+    if (!Number.isFinite(dur) || dur <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: dur,
+        playbackRate: audio.playbackRate || 1,
+        position: Math.min(Math.max(0, audio.currentTime), dur),
+      });
+    } catch {
+      /* invalid state — ignore */
+    }
   }, []);
 
   // --- Ripple on play button -------------------------------------------
@@ -145,6 +169,13 @@ export default function AudioPlayer({
       title: episode.title,
       artist: "The Essential",
       album: formatDate(episode.date, { day: "numeric", month: "long", year: "numeric" }),
+      // iOS keeps the audio session alive on lock only when the Now Playing
+      // card can be rendered — that requires artwork. Without it the session
+      // is dropped and playback is suspended when the screen locks.
+      artwork: [
+        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      ],
     });
     const audio = audioRef.current;
     const set = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
@@ -187,6 +218,7 @@ export default function AudioPlayer({
     setSpeedIdx(next);
     setSpeedAnimKey((k) => k + 1);
     if (audioRef.current) audioRef.current.playbackRate = SPEEDS[next];
+    updatePositionState();
   };
 
   const seekTo = (t: number) => {
@@ -194,6 +226,7 @@ export default function AudioPlayer({
     if (!audio) return;
     audio.currentTime = t;
     setCurrentTime(t);
+    updatePositionState();
   };
 
   // --- <audio> events -------------------------------------------------
@@ -202,6 +235,7 @@ export default function AudioPlayer({
     if (!audio) return;
     setDuration(audio.duration);
     setIsBuffering(false);
+    updatePositionState();
     try {
       const saved = episode && localStorage.getItem(posKey(episode.id));
       if (saved) {
@@ -224,6 +258,7 @@ export default function AudioPlayer({
     if (audio.currentTime - lastSavedRef.current > 5) {
       lastSavedRef.current = audio.currentTime;
       savePosition(audio.currentTime);
+      updatePositionState();
     }
     if (episode && audio.duration > 0) {
       const pctDone = (audio.currentTime / audio.duration) * 100;
