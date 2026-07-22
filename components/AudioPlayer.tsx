@@ -408,7 +408,8 @@ export default function AudioPlayer({
         onError={onError}
       />
 
-      {/* Row 1 */}
+      {/* Row 1 — episode identity (title + progress bar + centered controls
+          below, identical on mobile and desktop) */}
       <div className="mx-auto flex max-w-2xl items-center gap-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-contrast">
           <BrandGlyph className="h-6 w-6" />
@@ -417,13 +418,6 @@ export default function AudioPlayer({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-fg">{episode.title}</p>
           <p className="truncate text-xs text-subtle">{subtitle}</p>
-        </div>
-
-        <div className="sm:hidden">{renderSpeed()}</div>
-
-        <div className="hidden shrink-0 items-center gap-1 sm:flex">
-          {renderSpeed()}
-          {renderTransport()}
         </div>
       </div>
 
@@ -461,8 +455,10 @@ export default function AudioPlayer({
         </button>
       </div>
 
-      {/* Row 3 mobile — transport */}
-      <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-3 sm:hidden">
+      {/* Row 3 — centered controls (speed · −15 · play/pause · +15), unified
+          across mobile and desktop */}
+      <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-3">
+        {renderSpeed()}
         {renderTransport({ size: "lg" })}
       </div>
     </div>

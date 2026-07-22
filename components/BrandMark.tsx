@@ -1,5 +1,5 @@
 /**
- * Kairos brand mark — a broadcast/soundwave glyph inside a rounded tile.
+ * The Essential brand mark — a broadcast/soundwave glyph inside a rounded tile.
  * Pure SVG, currentColor-driven, reused in the header, the player and the
  * generated PWA/OG icons so the identity stays consistent everywhere.
  */

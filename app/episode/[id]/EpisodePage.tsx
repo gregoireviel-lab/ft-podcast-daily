@@ -42,7 +42,7 @@ export default function EpisodeDetail({ episode }: Props) {
             </div>
             <div className="min-w-0">
               <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-subtle">
-                Kairos
+                The Essential
               </p>
               <h1 className="font-serif text-2xl font-semibold leading-tight tracking-tight text-fg">
                 {episode.title}

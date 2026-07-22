@@ -1,12 +1,16 @@
 {
   "name": "The Essential",
-  "short_name": "The Essential",
+  "short_name": "Essential",
   "description": "Your daily essential financial briefing — powered by AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f11",
   "theme_color": "#0f0f11",
-  "categories": ["news", "business", "podcasts"],
+  "categories": [
+    "news",
+    "business",
+    "podcasts"
+  ],
   "lang": "en",
   "icons": [
     {
