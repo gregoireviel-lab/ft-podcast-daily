@@ -291,7 +291,8 @@ export default function AudioPlayer({
   const renderTransport = (opts?: { size?: "sm" | "lg" }) => {
     const big = opts?.size === "lg";
     const btn = big ? "h-12 w-12" : "h-11 w-11";
-    const playSize = big ? "h-14 w-14" : "h-12 w-12";
+    const playSize = big ? "h-16 w-16" : "h-12 w-12";
+    const playIcon = big ? "h-7 w-7" : "h-5 w-5";
     return (
       <>
         {/* Skip back 15s */}
@@ -335,7 +336,7 @@ export default function AudioPlayer({
           )}
           <span className="relative grid place-items-center">
             <svg
-              className={`col-start-1 row-start-1 ${big ? "h-6 w-6" : "h-5 w-5"} transition-all duration-150 ${
+              className={`col-start-1 row-start-1 ${playIcon} transition-all duration-150 ${
                 isPlaying ? "scale-100 opacity-100" : "scale-50 opacity-0"
               }`}
               fill="currentColor"
@@ -345,7 +346,7 @@ export default function AudioPlayer({
               <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
             </svg>
             <svg
-              className={`col-start-1 row-start-1 ml-0.5 ${big ? "h-6 w-6" : "h-5 w-5"} transition-all duration-150 ${
+              className={`col-start-1 row-start-1 ml-0.5 ${playIcon} transition-all duration-150 ${
                 isPlaying ? "scale-50 opacity-0" : "scale-100 opacity-100"
               }`}
               fill="currentColor"
@@ -419,6 +420,9 @@ export default function AudioPlayer({
           <p className="truncate text-sm font-semibold text-fg">{episode.title}</p>
           <p className="truncate text-xs text-subtle">{subtitle}</p>
         </div>
+
+        {/* Speed — right of the title, vertically centered */}
+        {renderSpeed()}
       </div>
 
       {/* Row 2 — seek bar */}
@@ -455,10 +459,9 @@ export default function AudioPlayer({
         </button>
       </div>
 
-      {/* Row 3 — centered controls (speed · −15 · play/pause · +15), unified
-          across mobile and desktop */}
-      <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-3">
-        {renderSpeed()}
+      {/* Row 3 — transport trio (−15 · play/pause · +15), truly centered.
+          Speed lives in row 1 (right of the title) so this stays symmetric. */}
+      <div className="mx-auto mt-1 flex max-w-2xl items-center justify-center gap-4">
         {renderTransport({ size: "lg" })}
       </div>
     </div>
