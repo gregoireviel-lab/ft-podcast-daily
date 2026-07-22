@@ -23,16 +23,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeById(id).catch(() => null);
   if (!episode) {
-    // `title` is a plain string -> the root template ("%s — Kairos") applies.
     return { title: "Épisode introuvable" };
   }
   return {
-    // Root layout template appends " — Kairos"; don't duplicate it here.
     title: episode.title,
-    description: episode.summary || `Épisode Kairos du ${episode.date}`,
+    description: episode.summary || `The Essential — ${episode.date}`,
     openGraph: {
       title: episode.title,
-      description: episode.summary || `Épisode Kairos du ${episode.date}`,
+      description: episode.summary || `The Essential — ${episode.date}`,
       type: "article",
     },
   };

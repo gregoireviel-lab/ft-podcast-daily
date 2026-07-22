@@ -28,13 +28,11 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "The Essential" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "The Essential",
     description: DESCRIPTION,
-    images: ["/og.png"],
   },
 };
 
