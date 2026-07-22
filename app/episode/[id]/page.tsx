@@ -19,6 +19,8 @@ export async function generateStaticParams() {
   }
 }
 
+const SITE_URL = "https://ft-podcast-daily.vercel.app";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeById(id).catch(() => null);
@@ -32,6 +34,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: episode.title,
       description: episode.summary || `The Essential — ${episode.date}`,
       type: "article",
+      url: `${SITE_URL}/episode/${id}`,
+      images: [
+        {
+          url: `${SITE_URL}/opengraph-image`,
+          width: 1200,
+          height: 630,
+          alt: "The Essential",
+        },
+      ],
     },
   };
 }

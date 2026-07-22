@@ -20,7 +20,7 @@ export default function ShareWhatsApp({ episodeId, title }: Props) {
     const origin =
       typeof window !== "undefined" ? window.location.origin : SITE_URL;
     const url = `${origin}/episode/${episodeId}`;
-    const text = `${title} — Kairos\n${url}`;
+    const text = `${title} — The Essential\n${url}`;
     captureEvent("episode_shared", { channel: "whatsapp", episode_id: episodeId });
     window.open(
       `https://wa.me/?text=${encodeURIComponent(text)}`,
