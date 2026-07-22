@@ -64,7 +64,8 @@ export function parseHighlights(raw: unknown): EpisodeHighlight[] {
       const title = typeof o.title === "string" ? o.title.trim() : "";
       if (!title) return null;
       const blurb = typeof o.blurb === "string" ? o.blurb.trim() : "";
-      return { rank, title, blurb };
+      const impact = typeof o.impact === "string" ? o.impact.trim() : "";
+      return { rank, title, blurb, ...(impact ? { impact } : {}) };
     })
     .filter((h): h is EpisodeHighlight => h !== null)
     .sort((a, b) => a.rank - b.rank);

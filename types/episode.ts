@@ -12,6 +12,8 @@ export interface EpisodeHighlight {
   title: string;
   /** One-line explanatory blurb. */
   blurb: string;
+  /** Short estimated market impact — direction + affected assets/sectors/rates. */
+  impact?: string;
 }
 
 export interface Episode {

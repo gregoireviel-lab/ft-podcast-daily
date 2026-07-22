@@ -98,6 +98,14 @@ export default function EpisodeDetail({ episode }: Props) {
                     {h.blurb && (
                       <p className="mt-0.5 text-[0.8125rem] leading-relaxed text-subtle">{h.blurb}</p>
                     )}
+                    {h.impact && (
+                      <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-[0.6875rem] font-medium text-accent">
+                        <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+                        </svg>
+                        {h.impact}
+                      </span>
+                    )}
                   </div>
                 </li>
               ))}
